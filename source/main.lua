@@ -16,10 +16,10 @@ local mth <const> = playdate.math
 -- several functions need to access it.
 
 local playerSprite = nil
-
-
-
-
+local sandboxImg = nil
+local imgOffsetX, imgOffsetY = 20, 20
+local drawMode = false
+local wc, bc, cc = gfx.kColorWhite, gfx.kColorBlack, gfx.kColorClear
 
 function myGameSetUp()
     -- Set up the player sprite.
@@ -34,6 +34,10 @@ function myGameSetUp()
     playerSprite:moveTo(50, 50) -- this is where the center of the sprite is placed; (200,120) is the center of the Playdate screen
 
 
+    sandboxImg = gfx.image.new(360, 200)
+    local sandboxSprite = gfx.sprite.new(sandboxImg)
+    gfx.sprite.add(sandboxSprite)
+    sandboxSprite:moveTo(180 + imgOffsetX, 100 + imgOffsetY)
     -- We want an environment displayed behind our sprite.
     -- There are generally two ways to do this:
     -- 1) Use setBackgroundDrawingCallback() to draw a background image. (This is what we're doing below.)
@@ -46,9 +50,10 @@ function myGameSetUp()
 
     gfx.sprite.setBackgroundDrawingCallback(
         function(x, y, width, height)
+            print("Drawing frame")
             gfx.setClipRect(x, y, width, height) -- let's only draw the part of the screen that's dirty
             gfx.clearClipRect()                  -- clear so we don't interfere with drawing that comes after this
-            gfx.setColor(playdate.graphics.kColorBlack)
+            gfx.setColor(bc)
             gfx.drawRect(20, 20, 360, 200)
         end
     )
@@ -59,12 +64,30 @@ end
 -- controlled by the OS calling `playdate.update()` 30 times a second.
 
 myGameSetUp()
+local prevx, prevy = playerSprite:getPosition()
 
 -- `playdate.update()` is the heart of every Playdate game.
 -- This function is called right before every frame is drawn onscreen.
 -- Use this function to poll input, run game logic, and move sprites.
 
-iteration = 0
+
+function updateSandboxImg()
+    local x, y = playerSprite:getPosition()
+    if drawMode then
+        gfx.setColor(bc)
+        gfx.pushContext(sandboxImg)
+        gfx.drawLine(prevx - imgOffsetX, prevy - imgOffsetY, x - imgOffsetX, y - imgOffsetY)
+        gfx.popContext()
+    end
+    prevx, prevy = x, y
+end
+
+function clearSandboxImg()
+    gfx.pushContext(sandboxImg)
+    gfx.setColor(cc)
+    gfx.fillRect(0, 0, 360, 200)
+    gfx.popContext()
+end
 
 function playdate.update()
     -- Poll the d-pad and move our player accordingly.
@@ -72,19 +95,29 @@ function playdate.update()
     -- Note that it is possible for more than one of these directions
     -- to be pressed at once, if the user is pressing diagonally.
 
-    crankTemp = math.floor(playdate.getCrankPosition()) + 1
 
+    if playdate.buttonJustReleased(playdate.kButtonA) then
+        drawMode = not drawMode
+        gfx.sprite.redrawBackground()
+    end
+    if playdate.buttonJustReleased(playdate.kButtonB) then
+        clearSandboxImg()
+    end
     if playdate.buttonIsPressed(playdate.kButtonUp) then
         playerSprite:moveBy(0, -2)
+        updateSandboxImg()
     end
     if playdate.buttonIsPressed(playdate.kButtonRight) then
         playerSprite:moveBy(2, 0)
+        updateSandboxImg()
     end
     if playdate.buttonIsPressed(playdate.kButtonDown) then
         playerSprite:moveBy(0, 2)
+        updateSandboxImg()
     end
     if playdate.buttonIsPressed(playdate.kButtonLeft) then
         playerSprite:moveBy(-2, 0)
+        updateSandboxImg()
     end
 
     -- Call the functions below in playdate.update() to draw sprites and keep
@@ -94,3 +127,18 @@ function playdate.update()
     gfx.sprite.update()
     playdate.timer.updateTimers()
 end
+
+gfx.sprite.setBackgroundDrawingCallback(
+    function(_x, _y, width, height)
+        local x, y = playerSprite:getPosition()
+        if drawMode then
+            print("drawing", prevx, prevy, x, y, drawMode)
+            gfx.drawPixel(x - 11, y - 1)
+            gfx.drawPixel(x + 9, y - 1)
+            gfx.drawPixel(x - 1, y + 9)
+            gfx.drawPixel(x - 1, y - 11)
+            prevx = x
+            prevy = y
+        end
+    end
+)
