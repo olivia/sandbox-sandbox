@@ -59,6 +59,18 @@ function myGameSetUp()
     )
 end
 
+function range(from, to, step)
+    step = step or 1
+    return function(_, lastvalue)
+        local nextvalue = lastvalue + step
+        if step > 0 and nextvalue <= to or step < 0 and nextvalue >= to or
+            step == 0
+        then
+            return nextvalue
+        end
+    end, nil, from - step
+end
+
 -- Now we'll call the function above to configure our game.
 -- After this runs (it just runs once), nearly everything will be
 -- controlled by the OS calling `playdate.update()` 30 times a second.
@@ -70,13 +82,34 @@ local prevx, prevy = playerSprite:getPosition()
 -- This function is called right before every frame is drawn onscreen.
 -- Use this function to poll input, run game logic, and move sprites.
 
+local trailNum = 3
+local spacingY = 7
+
+function drawTrail(num, x, y)
+    local spacingX = 0
+    for i in range(-0 - math.floor(num / 2), -1 + num - math.floor(num / 2), 1) do
+        gfx.drawLine(prevx - imgOffsetX, prevy - imgOffsetY + (i * spacingY), x - imgOffsetX,
+            y - imgOffsetY + (i * spacingY))
+        gfx.drawLine(prevx - imgOffsetX - 1, prevy - imgOffsetY - 2 + (i * spacingY), x - imgOffsetX - 1,
+            y - imgOffsetY - 2 + (i * spacingY))
+        gfx.drawLine(prevx - imgOffsetX - 3, prevy - imgOffsetY + 1 + (i * spacingY), x - imgOffsetX - 3,
+            y - imgOffsetY + 1 + (i * spacingY))
+    end
+end
+
+function drawGhostTrail(num, x, y)
+    local spacingX = 0
+    for i in range(-0 - math.floor(num / 2), -1 + num - math.floor(num / 2), 1) do
+        gfx.drawPixel(x - 1, y + (i * spacingY))
+    end
+end
 
 function updateSandboxImg()
     local x, y = playerSprite:getPosition()
     if drawMode then
         gfx.setColor(bc)
         gfx.pushContext(sandboxImg)
-        gfx.drawLine(prevx - imgOffsetX, prevy - imgOffsetY, x - imgOffsetX, y - imgOffsetY)
+        drawTrail(trailNum, x, y)
         gfx.popContext()
     end
     prevx, prevy = x, y
@@ -94,8 +127,12 @@ function playdate.update()
     -- (There are multiple ways to read the d-pad; this is the simplest.)
     -- Note that it is possible for more than one of these directions
     -- to be pressed at once, if the user is pressing diagonally.
+    newTrailNum = math.floor(((450 + playdate.getCrankPosition()) % 360) / 45)
 
-
+    if trailNum ~= newTrailNum then
+        trailNum = newTrailNum
+        gfx.sprite.redrawBackground()
+    end
     if playdate.buttonJustReleased(playdate.kButtonA) then
         drawMode = not drawMode
         gfx.sprite.redrawBackground()
@@ -132,11 +169,7 @@ gfx.sprite.setBackgroundDrawingCallback(
     function(_x, _y, width, height)
         local x, y = playerSprite:getPosition()
         if drawMode then
-            print("drawing", prevx, prevy, x, y, drawMode)
-            gfx.drawPixel(x - 11, y - 1)
-            gfx.drawPixel(x + 9, y - 1)
-            gfx.drawPixel(x - 1, y + 9)
-            gfx.drawPixel(x - 1, y - 11)
+            drawGhostTrail(trailNum, x, y)
             prevx = x
             prevy = y
         end
